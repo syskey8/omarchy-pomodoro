@@ -4,20 +4,14 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// Pomodoro timer — a native Omarchy bar widget with a dropdown panel.
-//
-// Architecture mirrors omarchy.agents: a Panel {} root (IPC + open/close
-// lifecycle), a WidgetButton for the bar slot, and a KeyboardPanel for the
-// dropdown card.  All colours and sizes come from the theme singletons
-// (Style, Color) so the widget looks right on every Omarchy theme.
-
 Panel {
   id: root
-  moduleName: "pomodoro"
-  ipcTarget: "pomodoro"
+  moduleName: "syskey8.pomodoro"
+  ipcTarget: "syskey8.pomodoro"
   manageIpc: false
 
-  // ---- theme wiring (same pattern as omarchy.agents) ---------------------
+  readonly property var service: bar?.shell?.serviceFor("syskey8.pomodoro") || bar?.shell?.serviceFor("omarchy.pomodoro")
+
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
@@ -25,152 +19,42 @@ Panel {
   readonly property color track: Style.selectedFillFor(foreground, Color.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  // ---- configurable durations (shell.json overrides) ---------------------
-  readonly property int focusSecs:      setting("focusMinutes", 25) * 60
-  readonly property int shortBreakSecs: setting("shortBreakMinutes", 5) * 60
-  readonly property int longBreakSecs:  setting("longBreakMinutes", 15) * 60
-  readonly property int sessionsBeforeLong: setting("sessionsBeforeLongBreak", 4)
+  readonly property string phase: root.service ? root.service.phase : "focus"
+  readonly property bool running: root.service ? root.service.running : false
+  readonly property int remainingSecs: root.service ? root.service.remainingSecs : 0
+  readonly property int totalSecs: root.service ? root.service.totalSecs : 0
+  readonly property int completedSessions: root.service ? root.service.completedSessions : 0
+  readonly property int customMinutes: root.service ? root.service.customMinutes : 10
+  
+  readonly property string phaseLabel: root.service ? root.service.phaseLabel : ""
+  readonly property string timeText: root.service ? root.service.timeText : "00:00"
+  readonly property real progress: root.service ? root.service.progress : 0
+  readonly property bool alarming: root.service ? root.service.alarming : false
 
-  // ---- timer state -------------------------------------------------------
-  // phase: "focus" | "shortBreak" | "longBreak" | "custom"
-  property string phase: "focus"
-  property int totalSecs: focusSecs
-  property int remainingSecs: focusSecs
-  property bool running: false
-  property int completedSessions: 0
-
-  // Custom timer input (minutes entered by the user)
-  property int customMinutes: 10
-
-  // Human-readable helpers
-  readonly property string phaseLabel: phase === "focus" ? "Focus"
-    : phase === "shortBreak" ? "Short Break"
-    : phase === "longBreak" ? "Long Break"
-    : "Custom Timer"
-
-  readonly property string timeText: {
-    var m = Math.floor(remainingSecs / 60)
-    var s = remainingSecs % 60
-    return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
-  }
-
-  readonly property real progress: totalSecs > 0
-    ? 1.0 - (remainingSecs / totalSecs) : 0
-
-  readonly property bool alarming: running && remainingSecs <= 30
-
-  // ---- core timer --------------------------------------------------------
-  Timer {
-    id: countdown
-    interval: 1000
-    running: root.running
-    repeat: true
-    onTriggered: {
-      if (root.remainingSecs > 0) {
-        root.remainingSecs--
-      }
-      if (root.remainingSecs <= 0) {
-        root.running = false
-        root.onPhaseComplete()
-      }
-    }
-  }
-
-  // ---- sound alert -------------------------------------------------------
-  Process {
-    id: alarmSound
-    command: ["pw-play", "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"]
-  }
-
-  // Desktop notification via notify-send (does not depend on omarchy reminder)
-  Process {
-    id: notifyProcess
-    property string message: ""
-    command: ["notify-send", "--urgency=critical", "--app-name=Pomodoro", "🍅 Pomodoro", message]
-  }
-
-  function playAlarm() {
-    alarmSound.running = false
-    alarmSound.running = true
-  }
-
-  function sendNotification(msg) {
-    notifyProcess.message = msg
-    notifyProcess.running = false
-    notifyProcess.running = true
-  }
-
-  function onPhaseComplete() {
-    // Play the alarm sound and show a notification
-    playAlarm()
-
-    if (phase === "focus") {
-      completedSessions++
-      if (completedSessions % sessionsBeforeLong === 0) {
-        sendNotification("Great work! Time for a long break.")
-        switchPhase("longBreak")
-      } else {
-        sendNotification("Focus done! Take a short break.")
-        switchPhase("shortBreak")
-      }
-    } else if (phase === "custom") {
-      sendNotification("Custom timer finished!")
-      // Stay on custom, reset to the same duration
-      remainingSecs = totalSecs
-    } else {
-      sendNotification("Break over! Time to focus.")
-      switchPhase("focus")
-    }
-  }
-
-  function switchPhase(newPhase) {
-    phase = newPhase
-    if (newPhase === "focus") {
-      totalSecs = focusSecs
-    } else if (newPhase === "shortBreak") {
-      totalSecs = shortBreakSecs
-    } else if (newPhase === "longBreak") {
-      totalSecs = longBreakSecs
-    } else if (newPhase === "custom") {
-      totalSecs = customMinutes * 60
-    }
-    remainingSecs = totalSecs
-  }
-
-  // ---- public actions (also exposed via IPC) -----------------------------
   function startPause() {
-    running = !running
+    if (!root.service) return
+    if (root.running) root.service.pause()
+    else root.service.start(0)
+  }
+  
+  function stop() { if (root.service) root.service.reset() }
+  function skip() { if (root.service) root.service.skip() }
+  function setCustom(m) { if (root.service) root.service.setCustom(m) }
+  
+  function switchPhase(newPhase) {
+    if (!root.service) return
+    root.service.running = false
+    root.service.phase = newPhase
+    if (newPhase === "focus") root.service.totalSecs = root.service.focusSecs
+    else if (newPhase === "shortBreak") root.service.totalSecs = root.service.shortBreakSecs
+    else if (newPhase === "longBreak") root.service.totalSecs = root.service.longBreakSecs
+    root.service.remainingSecs = root.service.totalSecs
   }
 
-  function stop() {
-    running = false
-    switchPhase("focus")
-    completedSessions = 0
-  }
-
-  function skip() {
-    running = false
-    onPhaseComplete()
-  }
-
-  function startCustom(minutes) {
-    customMinutes = minutes
-    running = false
-    switchPhase("custom")
-    running = true
-  }
-
-  // ---- visibility / sizing -----------------------------------------------
-  implicitWidth: button.implicitWidth
-  implicitHeight: button.implicitHeight
-
-  onOpenedChanged: if (opened) {
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
-  }
-
-  // ---- IPC handler -------------------------------------------------------
-  IpcHandler {
-    target: root.ipcTarget
+  // ---- IPC handles -------------------------------------------------------
+  Connections {
+    target: bar ? bar.ipc : null
+    ignoreUnknownSignals: true
     function open(): void { root.open() }
     function close(): void { root.close() }
     function show(): void { root.open() }
@@ -181,24 +65,19 @@ Panel {
     function reset(): void { root.stop() }
   }
 
-  // ---- bar button --------------------------------------------------------
-  // Show the icon + live countdown text when running; just the icon at rest.
+  // ---- bar slot ----------------------------------------------------------
   WidgetButton {
     id: button
-    anchors.fill: parent
     bar: root.bar
-    // Tomato icon from Nerd Font
-    text: root.running ? "󱎫 " + root.timeText : "󱎫"
-    fontSize: Style.font.body
-    active: root.alarming
-    horizontalMargin: 8.75
-    verticalPadding: 8.75
-    dimmed: !root.running && root.remainingSecs === root.totalSecs
+    text: root.running || root.remainingSecs !== root.totalSecs ? root.timeText : ""
+    iconText: root.phase === "focus" ? "󰔟" : root.phase === "custom" ? "󰔟" : "󰒲"
+    iconOnly: text === ""
+    urgency: root.alarming ? 2 : root.running ? 1 : 0
+    selected: panel.open
+    tooltip: root.phaseLabel
 
-    onPressed: function(b) {
-      if (b === Qt.RightButton) root.startPause()
-      else root.toggle()
-    }
+    onClicked: root.toggle()
+    onRightClicked: root.startPause()
   }
 
   // ---- dropdown panel ----------------------------------------------------
@@ -210,7 +89,7 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(320))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(560))
+    contentHeight: panel.fittedContentHeight(scroll.implicitHeight, Style.space(560))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -226,249 +105,186 @@ Panel {
         else if (t === "n" || t === "N") root.skip()
       }
 
-      Column {
-        id: column
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        spacing: Style.space(14)
+      ScrollView {
+        id: scroll
+        anchors.fill: parent
+        contentWidth: availableWidth
+        clip: true
 
-        // ---------- Hero: tomato icon · phase · session count ---------------
-        PanelHero {
+        Column {
+          id: column
           width: parent.width
-          title: root.phaseLabel
-          meta: root.completedSessions > 0
-            ? root.completedSessions + " session" + (root.completedSessions !== 1 ? "s" : "") + " done"
-            : "Ready to focus"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
+          spacing: Style.space(14)
 
-          iconComponent: Component {
-            Text {
-              width: Style.font.display
-              height: Style.font.display
-              text: "󱎫"
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.display
-              horizontalAlignment: Text.AlignHCenter
-              verticalAlignment: Text.AlignVCenter
+          PanelHero {
+            width: parent.width
+            title: root.phaseLabel
+            meta: root.completedSessions > 0
+              ? root.completedSessions + " session" + (root.completedSessions > 1 ? "s" : "")
+              : "Ready to focus"
+            heroSize: Style.font.heading1 * 1.5
+            hero: root.timeText
+            foreground: root.foreground
+            dim: root.dim
+            fontFamily: root.fontFamily
+            urgency: root.alarming ? 2 : 0
+          }
+
+          ProgressBar {
+            width: parent.width
+            value: root.progress
+            foreground: root.foreground
+            track: root.track
+            accent: root.urgent
+          }
+
+          Row {
+            width: parent.width
+            spacing: Style.space(6)
+            property real cellWidth: (width - spacing * 2) / 3
+
+            Button {
+              width: parent.cellWidth
+              iconText: root.running ? "󰏤" : "󰐊"
+              text: root.running ? "Pause" : "Start"
+              fontSize: Style.font.bodySmall
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              horizontalPadding: Style.spacing.controlPaddingX
+              verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+              bordered: true
+              accent: root.running ? root.foreground : root.urgent
+              onClicked: root.startPause()
+            }
+
+            Button {
+              width: parent.cellWidth
+              iconText: "󰒭"
+              text: "Skip"
+              fontSize: Style.font.bodySmall
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              horizontalPadding: Style.spacing.controlPaddingX
+              verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+              bordered: true
+              onClicked: root.skip()
+            }
+
+            Button {
+              width: parent.cellWidth
+              iconText: "󰑐"
+              text: "Reset"
+              fontSize: Style.font.bodySmall
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              horizontalPadding: Style.spacing.controlPaddingX
+              verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+              bordered: true
+              onClicked: root.stop()
             }
           }
-        }
 
-        // ---------- Big countdown display -----------------------------------
-        Text {
-          width: parent.width
-          text: root.timeText
-          color: root.alarming ? root.urgent : root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.displayLarge
-          font.bold: true
-          horizontalAlignment: Text.AlignHCenter
+          PanelSeparator { foreground: root.foreground }
 
-          Behavior on color { ColorAnimation { duration: 200 } }
-        }
-
-        // ---------- Progress meter ------------------------------------------
-        Item {
-          width: parent.width
-          implicitHeight: Style.space(8)
-
-          Rectangle {
-            id: progressTrack
-            anchors.fill: parent
-            radius: height / 2
-            color: root.track
+          PanelSectionHeader {
+            text: "MODES"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
           }
 
-          Rectangle {
-            anchors.left: progressTrack.left
-            anchors.verticalCenter: progressTrack.verticalCenter
-            height: progressTrack.height
-            radius: progressTrack.radius
-            color: root.alarming ? root.urgent : root.foreground
-            width: Math.max(progressTrack.height, progressTrack.width * root.progress)
+          Row {
+            width: parent.width
+            spacing: Style.space(6)
+            property real cellWidth: (width - spacing * 2) / 3
 
-            Behavior on width {
-              NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
+            Button {
+              width: parent.cellWidth
+              text: "Focus"
+              fontSize: Style.font.bodySmall
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              horizontalPadding: Style.spacing.controlPaddingX
+              verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+              bordered: true
+              selected: root.phase === "focus"
+              onClicked: root.switchPhase("focus")
             }
-            Behavior on color { ColorAnimation { duration: 220 } }
 
-            // Pulse while running
-            SequentialAnimation on opacity {
-              running: root.running && root.opened
-              loops: Animation.Infinite
-              alwaysRunToEnd: true
-              NumberAnimation { from: 1.0; to: 0.55; duration: 950; easing.type: Easing.InOutSine }
-              NumberAnimation { from: 0.55; to: 1.0; duration: 950; easing.type: Easing.InOutSine }
+            Button {
+              width: parent.cellWidth
+              text: "Short"
+              fontSize: Style.font.bodySmall
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              horizontalPadding: Style.spacing.controlPaddingX
+              verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+              bordered: true
+              selected: root.phase === "shortBreak"
+              onClicked: root.switchPhase("shortBreak")
+            }
+
+            Button {
+              width: parent.cellWidth
+              text: "Long"
+              fontSize: Style.font.bodySmall
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              horizontalPadding: Style.spacing.controlPaddingX
+              verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+              bordered: true
+              selected: root.phase === "longBreak"
+              onClicked: root.switchPhase("longBreak")
             }
           }
-        }
 
-        // ---------- Controls ------------------------------------------------
-        PanelSeparator {
-          foreground: root.foreground
-        }
+          PanelSeparator { foreground: root.foreground }
 
-        Row {
-          width: parent.width
-          spacing: Style.space(6)
-
-          readonly property real cellWidth: (width - spacing * 2) / 3
-
-          // Start / Pause
-          Button {
-            width: parent.cellWidth
-            iconText: root.running ? "󰏤" : "󰐊"
-            text: root.running ? "Pause" : "Start"
-            fontSize: Style.font.bodySmall
+          PanelSectionHeader {
+            text: "CUSTOM TIMER"
             foreground: root.foreground
             fontFamily: root.fontFamily
-            horizontalPadding: Style.spacing.controlPaddingX
-            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
-            bordered: true
-            active: root.running
-            onClicked: root.startPause()
           }
 
-          // Skip to next phase
-          Button {
-            width: parent.cellWidth
-            iconText: "󰒭"
-            text: "Skip"
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            horizontalPadding: Style.spacing.controlPaddingX
-            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
-            bordered: true
-            onClicked: root.skip()
+          Row {
+            width: parent.width
+            spacing: Style.space(6)
+
+            NumberField {
+              id: customField
+              value: root.customMinutes
+              from: 1
+              to: 999
+              stepSize: 1
+              foreground: root.foreground
+              accent: root.track
+              fontFamily: root.fontFamily
+              fontSize: Style.font.body
+              onModified: function(v) { if (root.service) root.service.customMinutes = v }
+            }
+
+            Button {
+              width: parent.width - customField.width - parent.spacing
+              height: customField.height
+              iconText: "󰐊"
+              text: "Start Timer"
+              fontSize: Style.font.bodySmall
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              horizontalPadding: Style.spacing.controlPaddingX
+              bordered: true
+              active: root.phase === "custom"
+              onClicked: root.setCustom(customField.value)
+            }
           }
 
-          // Reset everything
-          Button {
-            width: parent.cellWidth
-            iconText: "󰑐"
-            text: "Reset"
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            horizontalPadding: Style.spacing.controlPaddingX
-            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
-            bordered: true
-            onClicked: root.stop()
+          Text {
+            width: parent.width
+            text: "S start/pause · N skip · R reset"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
           }
-        }
-
-        // ---------- Phase picker --------------------------------------------
-        PanelSeparator {
-          foreground: root.foreground
-        }
-
-        PanelSectionHeader {
-          text: "TIMER MODE"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
-
-        Row {
-          width: parent.width
-          spacing: Style.space(6)
-
-          readonly property real cellWidth: (width - spacing * 2) / 3
-
-          Button {
-            width: parent.cellWidth
-            text: "Focus"
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            horizontalPadding: Style.spacing.controlPaddingX
-            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
-            bordered: true
-            selected: root.phase === "focus"
-            onClicked: { root.running = false; root.switchPhase("focus") }
-          }
-
-          Button {
-            width: parent.cellWidth
-            text: "Short"
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            horizontalPadding: Style.spacing.controlPaddingX
-            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
-            bordered: true
-            selected: root.phase === "shortBreak"
-            onClicked: { root.running = false; root.switchPhase("shortBreak") }
-          }
-
-          Button {
-            width: parent.cellWidth
-            text: "Long"
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            horizontalPadding: Style.spacing.controlPaddingX
-            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
-            bordered: true
-            selected: root.phase === "longBreak"
-            onClicked: { root.running = false; root.switchPhase("longBreak") }
-          }
-        }
-
-        // ---------- Custom timer --------------------------------------------
-        PanelSeparator {
-          foreground: root.foreground
-        }
-
-        PanelSectionHeader {
-          text: "CUSTOM TIMER"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
-
-        Row {
-          width: parent.width
-          spacing: Style.space(6)
-
-          NumberField {
-            id: customField
-            value: root.customMinutes
-            from: 1
-            to: 999
-            stepSize: 1
-            foreground: root.foreground
-            accent: root.track // Using track color or default accent
-            fontFamily: root.fontFamily
-            fontSize: Style.font.body
-            onModified: function(v) { root.customMinutes = v }
-          }
-
-          Button {
-            width: parent.width - customField.width - parent.spacing
-            height: customField.height
-            iconText: "󰐊"
-            text: "Start Timer"
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            horizontalPadding: Style.spacing.controlPaddingX
-            bordered: true
-            active: root.phase === "custom"
-            onClicked: root.startCustom(root.customMinutes)
-          }
-        }
-
-        // ---------- Keyboard hints ------------------------------------------
-        Text {
-          width: parent.width
-          text: "S start/pause · N skip · R reset"
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          horizontalAlignment: Text.AlignHCenter
         }
       }
     }

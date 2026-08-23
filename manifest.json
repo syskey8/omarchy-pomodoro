@@ -6,8 +6,9 @@
   "author": "laroi",
   "license": "MIT",
   "description": "Pomodoro focus timer with live countdown in the bar.",
-  "kinds": ["bar-widget"],
+  "kinds": ["service", "bar-widget"],
   "entryPoints": {
+    "service": "Service.qml",
     "barWidget": "Panel.qml"
   },
   "barWidget": {
