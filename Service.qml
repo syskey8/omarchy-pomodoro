@@ -9,6 +9,14 @@ Item {
   property var shell: null
   property var settings: ({})
 
+  IpcHandler {
+    target: "syskey8.pomodoro.service"
+    function start() { if (!root.running) root.start(0) }
+    function pause() { if (root.running) root.pause() }
+    function reset() { root.reset() }
+    function skip() { root.skip() }
+  }
+
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
     return value === undefined || value === null ? fallback : value
