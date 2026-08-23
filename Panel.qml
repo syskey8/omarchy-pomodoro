@@ -10,6 +10,9 @@ Panel {
   moduleName: "syskey8.pomodoro"
   ipcTarget: "syskey8.pomodoro"
 
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
   readonly property var service: bar && bar.shell ? (bar.shell.serviceFor("syskey8.pomodoro") || bar.shell.serviceFor("omarchy.pomodoro")) : null
 
   onSettingsChanged: {
@@ -58,6 +61,7 @@ Panel {
   // ---- bar slot ----------------------------------------------------------
   WidgetButton {
     id: button
+    anchors.fill: parent
     bar: root.bar
     text: root.running || root.remainingSecs !== root.totalSecs
       ? "󰔟 " + root.timeText
@@ -133,7 +137,7 @@ Panel {
                 text: root.timeText
                 color: root.alarming ? root.urgent : root.foreground
                 font.family: root.fontFamily
-                font.pixelSize: Math.round(Style.font.heading1 * 1.5)
+                font.pixelSize: Math.round(Style.font.displayLarge * 1.5)
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
 
