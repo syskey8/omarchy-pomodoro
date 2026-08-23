@@ -76,9 +76,11 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.running || root.remainingSecs !== root.totalSecs
-      ? "󰔟 " + root.timeText
-      : root.phase === "shortBreak" || root.phase === "longBreak" ? "󰒲" : "󰔟"
+    text: {
+      var icon = root.phase === "shortBreak" || root.phase === "longBreak" ? "󰒲" : "󰔟"
+      if (root.bar && root.bar.vertical) return icon
+      return root.running || root.remainingSecs !== root.totalSecs ? (icon + " " + root.timeText) : icon
+    }
     tooltipText: root.phaseLabel
     active: root.running || root.alarming
     horizontalMargin: 7.5
