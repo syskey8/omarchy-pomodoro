@@ -1,10 +1,10 @@
 
-function advancePhase(phase, completedSessions, sessionsBeforeLongBreak) {
+function advancePhase(phase, completedSessions, sessionsBeforeLongBreak, completed) {
   if (phase === "custom") {
     return "focus"
   }
   if (phase === "focus") {
-    if (completedSessions > 0 && completedSessions % sessionsBeforeLongBreak === 0) {
+    if (completed && completedSessions > 0 && completedSessions % sessionsBeforeLongBreak === 0) {
       return "longBreak"
     }
     return "shortBreak"

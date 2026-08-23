@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import "Model.js" as Model
 
 Item {
   id: root
@@ -9,23 +10,19 @@ Item {
   property var shell: null
   property var settings: ({})
 
-  IpcHandler {
-    target: "syskey8.pomodoro.service"
-    function start() { if (!root.running) root.start(0) }
-    function pause() { if (root.running) root.pause() }
-    function reset() { root.reset() }
-    function skip() { root.skip() }
-  }
-
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
     return value === undefined || value === null ? fallback : value
   }
 
-  readonly property int focusSecs: setting("focusMinutes", 25) * 60
+readonly property int focusSecs: setting("focusMinutes", 25) * 60
   readonly property int shortBreakSecs: setting("shortBreakMinutes", 5) * 60
   readonly property int longBreakSecs: setting("longBreakMinutes", 15) * 60
   readonly property int sessionsBeforeLong: setting("sessionsBeforeLongBreak", 4)
+
+  onFocusSecsChanged: { if (!running && phase === "focus") { totalSecs = focusSecs; remainingSecs = focusSecs; } }
+  onShortBreakSecsChanged: { if (!running && phase === "shortBreak") { totalSecs = shortBreakSecs; remainingSecs = shortBreakSecs; } }
+  onLongBreakSecsChanged: { if (!running && phase === "longBreak") { totalSecs = longBreakSecs; remainingSecs = longBreakSecs; } }
 
   property string phase: "focus"
   property int totalSecs: focusSecs
@@ -55,10 +52,8 @@ Item {
 
   function start(duration) {
     if (!running) {
-      if (remainingSecs <= 0 && duration) {
-        remainingSecs = duration
-      }
       if (duration) {
+        remainingSecs = duration
         totalSecs = duration
       }
       targetTimeMs = Date.now() + (remainingSecs * 1000)
@@ -72,8 +67,7 @@ Item {
 
   function skip() {
     running = false
-    // Skip without completion credit or alarm
-    advancePhase()
+    advancePhase(false)
   }
 
   function reset() {
@@ -93,26 +87,13 @@ Item {
     start(0)
   }
 
-  function advancePhase() {
-    if (phase === "custom") {
-      phase = "focus"
-      totalSecs = focusSecs
-      remainingSecs = focusSecs
-      return
+  function advancePhase(completed) {
+    var previousPhase = phase
+    if (completed && phase === "focus") {
+      completedSessions++
     }
-
-    if (phase === "focus") {
-      if (completedSessions > 0 && completedSessions % sessionsBeforeLong === 0) {
-        phase = "longBreak"
-        totalSecs = longBreakSecs
-      } else {
-        phase = "shortBreak"
-        totalSecs = shortBreakSecs
-      }
-    } else {
-      phase = "focus"
-      totalSecs = focusSecs
-    }
+    phase = Model.advancePhase(previousPhase, completedSessions, sessionsBeforeLong, completed)
+    totalSecs = Model.getPhaseSecs(phase, focusSecs, shortBreakSecs, longBreakSecs, customMinutes)
     remainingSecs = totalSecs
   }
 
@@ -130,9 +111,6 @@ Item {
 
   function onPhaseComplete() {
     running = false
-    if (phase === "focus") {
-      completedSessions++
-    }
     
     notifyProcess.titleMsg = phase === "focus" ? "Focus complete" : "Break complete"
     notifyProcess.bodyMsg = phase === "focus" ? "Time for a break." : "Back to work!"
@@ -140,7 +118,7 @@ Item {
     alarmSound.running = true
     notifyProcess.running = true
     
-    advancePhase()
+    advancePhase(true)
   }
 
   Timer {

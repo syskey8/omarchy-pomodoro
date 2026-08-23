@@ -10,10 +10,24 @@ Panel {
   moduleName: "syskey8.pomodoro"
   ipcTarget: "syskey8.pomodoro"
 
+  manageIpc: false
+
+  IpcHandler {
+    enabled: bar && bar.screen === shell.primaryScreen
+    target: "syskey8.pomodoro"
+    function open() { root.open() }
+    function close() { root.close() }
+    function toggle() { root.toggle() }
+    function start() { root.startPause() }
+    function pause() { root.startPause() }
+    function reset() { root.stop() }
+    function skip() { root.skip() }
+  }
+
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  readonly property var service: bar && bar.shell ? (bar.shell.serviceFor("syskey8.pomodoro") || bar.shell.serviceFor("omarchy.pomodoro")) : null
+  readonly property var service: bar && bar.shell ? (bar.shell.serviceFor("syskey8.pomodoro")) : null
 
   onSettingsChanged: {
     if (root.service) root.service.settings = root.settings
