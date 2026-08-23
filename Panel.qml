@@ -116,7 +116,7 @@ Panel {
         else if (t === "1") root.switchPhase("focus")
         else if (t === "2") root.switchPhase("shortBreak")
         else if (t === "3") root.switchPhase("longBreak")
-        else if (t === "c" || t === "C") customField.forceActiveFocus()
+        else if (t === "c" || t === "C") customField.field.forceActiveFocus()
       }
 
       ScrollView {
@@ -322,6 +322,21 @@ Panel {
               fontFamily: root.fontFamily
               fontSize: Style.font.body
               onModified: function(v) { if (root.service) root.service.customMinutes = v }
+
+              field.Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Escape) {
+                  keyCatcher.forceActiveFocus()
+                  event.accepted = true
+                } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                  keyCatcher.forceActiveFocus()
+                  root.switchPanel(event.key === Qt.Key_Backtab ? "previous" : "next")
+                  event.accepted = true
+                } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                  root.setCustom(customField.value)
+                  keyCatcher.forceActiveFocus()
+                  event.accepted = true
+                }
+              }
             }
 
             Button {
