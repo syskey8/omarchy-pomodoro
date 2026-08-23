@@ -112,8 +112,8 @@ readonly property int focusSecs: setting("focusMinutes", 25) * 60
   function onPhaseComplete() {
     running = false
     
-    notifyProcess.titleMsg = phase === "focus" ? "Focus complete" : "Break complete"
-    notifyProcess.bodyMsg = phase === "focus" ? "Time for a break." : "Back to work!"
+    notifyProcess.titleMsg = phase === "focus" ? "Focus complete" : (phase === "custom" ? "Timer complete" : "Break complete")
+    notifyProcess.bodyMsg = phase === "focus" ? "Time for a break." : (phase === "custom" ? "Your custom timer has elapsed." : "Back to work!")
     
     alarmSound.running = true
     notifyProcess.running = true

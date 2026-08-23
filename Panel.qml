@@ -13,13 +13,12 @@ Panel {
   manageIpc: false
 
   IpcHandler {
-    enabled: bar && bar.screen === shell.primaryScreen
     target: "syskey8.pomodoro"
     function open() { root.open() }
     function close() { root.close() }
     function toggle() { root.toggle() }
-    function start() { root.startPause() }
-    function pause() { root.startPause() }
+    function start() { if (root.service) root.service.start() }
+    function pause() { if (root.service) root.service.pause() }
     function reset() { root.stop() }
     function skip() { root.skip() }
   }
