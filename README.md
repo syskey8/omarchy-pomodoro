@@ -4,6 +4,8 @@ A native, first-class Pomodoro focus timer for the Omarchy top bar.
 
 Built entirely with standard Omarchy `qs.Ui` components and Quickshell, this plugin perfectly matches your system theme, typography, and colors out of the box.
 
+![Preview](preview.png)
+
 ## Features
 - **Standard Pomodoro Flow:** Automatically handles 25m focus sessions, 5m short breaks, and 15m long breaks (after 4 sessions).
 - **Custom Timer:** A built-in NumberField to spin up a custom timer for any duration.

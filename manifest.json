@@ -3,7 +3,7 @@
   "id": "syskey8.pomodoro",
   "name": "Pomodoro",
   "version": "1.0.0",
-  "author": "laroi",
+  "author": "syskey8",
   "license": "MIT",
   "description": "Pomodoro focus timer with live countdown in the bar.",
   "kinds": ["service", "bar-widget"],
