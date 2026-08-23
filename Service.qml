@@ -18,7 +18,7 @@ Item {
     return value
   }
 
-readonly property int focusSecs: setting("focusMinutes", 25, 1, 120) * 60
+  readonly property int focusSecs: setting("focusMinutes", 25, 1, 120) * 60
   readonly property int shortBreakSecs: setting("shortBreakMinutes", 5, 1, 60) * 60
   readonly property int longBreakSecs: setting("longBreakMinutes", 15, 1, 120) * 60
   readonly property int sessionsBeforeLong: setting("sessionsBeforeLongBreak", 4, 1, 10)

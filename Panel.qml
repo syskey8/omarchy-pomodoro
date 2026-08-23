@@ -337,7 +337,7 @@ Panel {
 
           Text {
             width: parent.width
-            text: "S start/pause · N skip · R reset"
+            text: "S start/pause · N skip · R reset\n1/2/3 modes · C custom · Enter start"
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
