@@ -50,7 +50,9 @@ Item {
       if (remainingSecs <= 0 && duration) {
         remainingSecs = duration
       }
-      totalSecs = duration || remainingSecs
+      if (duration) {
+        totalSecs = duration
+      }
       targetTimeMs = Date.now() + (remainingSecs * 1000)
       running = true
     }
@@ -80,6 +82,7 @@ Item {
     phase = "custom"
     totalSecs = mins * 60
     remainingSecs = mins * 60
+    start(0)
   }
 
   function advancePhase() {

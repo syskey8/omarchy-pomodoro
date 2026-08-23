@@ -8,9 +8,15 @@ Panel {
   id: root
   moduleName: "syskey8.pomodoro"
   ipcTarget: "syskey8.pomodoro"
-  manageIpc: false
 
   readonly property var service: bar?.shell?.serviceFor("syskey8.pomodoro") || bar?.shell?.serviceFor("omarchy.pomodoro")
+
+  Binding {
+    target: root.service
+    property: "settings"
+    value: root.settings
+    restoreMode: Binding.RestoreBinding
+  }
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
@@ -52,14 +58,8 @@ Panel {
   }
 
   // ---- IPC handles -------------------------------------------------------
-  Connections {
-    target: bar ? bar.ipc : null
-    ignoreUnknownSignals: true
-    function open(): void { root.open() }
-    function close(): void { root.close() }
-    function show(): void { root.open() }
-    function hide(): void { root.close() }
-    function toggle(): void { root.toggle() }
+  IpcHandler {
+    target: root.ipcTarget
     function start(): void { if (!root.running) root.startPause() }
     function pause(): void { if (root.running) root.startPause() }
     function reset(): void { root.stop() }
