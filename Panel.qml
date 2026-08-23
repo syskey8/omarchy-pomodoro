@@ -99,7 +99,7 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(320))
-    contentHeight: panel.fittedContentHeight(scroll.implicitHeight, Style.space(560))
+    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(560))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -113,6 +113,10 @@ Panel {
         if (t === "s" || t === "S") root.startPause()
         else if (t === "r" || t === "R") root.stop()
         else if (t === "n" || t === "N") root.skip()
+        else if (t === "1") root.switchPhase("focus")
+        else if (t === "2") root.switchPhase("shortBreak")
+        else if (t === "3") root.switchPhase("longBreak")
+        else if (t === "c" || t === "C") customField.forceActiveFocus()
       }
 
       ScrollView {
