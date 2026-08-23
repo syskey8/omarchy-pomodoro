@@ -10,15 +10,18 @@ Item {
   property var shell: null
   property var settings: ({})
 
-  function setting(name, fallback) {
+  function setting(name, fallback, min, max) {
     var value = settings ? settings[name] : undefined
-    return value === undefined || value === null ? fallback : value
+    value = value === undefined || value === null ? fallback : value
+    if (min !== undefined) value = Math.max(min, value)
+    if (max !== undefined) value = Math.min(max, value)
+    return value
   }
 
-readonly property int focusSecs: setting("focusMinutes", 25) * 60
-  readonly property int shortBreakSecs: setting("shortBreakMinutes", 5) * 60
-  readonly property int longBreakSecs: setting("longBreakMinutes", 15) * 60
-  readonly property int sessionsBeforeLong: setting("sessionsBeforeLongBreak", 4)
+readonly property int focusSecs: setting("focusMinutes", 25, 1, 120) * 60
+  readonly property int shortBreakSecs: setting("shortBreakMinutes", 5, 1, 60) * 60
+  readonly property int longBreakSecs: setting("longBreakMinutes", 15, 1, 120) * 60
+  readonly property int sessionsBeforeLong: setting("sessionsBeforeLongBreak", 4, 1, 10)
 
   onFocusSecsChanged: { if (!running && phase === "focus") { totalSecs = focusSecs; remainingSecs = focusSecs; } }
   onShortBreakSecsChanged: { if (!running && phase === "shortBreak") { totalSecs = shortBreakSecs; remainingSecs = shortBreakSecs; } }
