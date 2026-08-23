@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -9,13 +10,10 @@ Panel {
   moduleName: "syskey8.pomodoro"
   ipcTarget: "syskey8.pomodoro"
 
-  readonly property var service: bar?.shell?.serviceFor("syskey8.pomodoro") || bar?.shell?.serviceFor("omarchy.pomodoro")
+  readonly property var service: bar && bar.shell ? (bar.shell.serviceFor("syskey8.pomodoro") || bar.shell.serviceFor("omarchy.pomodoro")) : null
 
-  Binding {
-    target: root.service
-    property: "settings"
-    value: root.settings
-    restoreMode: Binding.RestoreBinding
+  onSettingsChanged: {
+    if (root.service) root.service.settings = root.settings
   }
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -31,7 +29,7 @@ Panel {
   readonly property int totalSecs: root.service ? root.service.totalSecs : 0
   readonly property int completedSessions: root.service ? root.service.completedSessions : 0
   readonly property int customMinutes: root.service ? root.service.customMinutes : 10
-  
+
   readonly property string phaseLabel: root.service ? root.service.phaseLabel : ""
   readonly property string timeText: root.service ? root.service.timeText : "00:00"
   readonly property real progress: root.service ? root.service.progress : 0
@@ -42,11 +40,11 @@ Panel {
     if (root.running) root.service.pause()
     else root.service.start(0)
   }
-  
+
   function stop() { if (root.service) root.service.reset() }
   function skip() { if (root.service) root.service.skip() }
   function setCustom(m) { if (root.service) root.service.setCustom(m) }
-  
+
   function switchPhase(newPhase) {
     if (!root.service) return
     root.service.running = false
@@ -57,27 +55,20 @@ Panel {
     root.service.remainingSecs = root.service.totalSecs
   }
 
-  // ---- IPC handles -------------------------------------------------------
-  IpcHandler {
-    target: root.ipcTarget
-    function start(): void { if (!root.running) root.startPause() }
-    function pause(): void { if (root.running) root.startPause() }
-    function reset(): void { root.stop() }
-  }
-
   // ---- bar slot ----------------------------------------------------------
   WidgetButton {
     id: button
     bar: root.bar
-    text: root.running || root.remainingSecs !== root.totalSecs ? root.timeText : ""
-    iconText: root.phase === "focus" ? "󰔟" : root.phase === "custom" ? "󰔟" : "󰒲"
-    iconOnly: text === ""
-    urgency: root.alarming ? 2 : root.running ? 1 : 0
-    selected: panel.open
-    tooltip: root.phaseLabel
+    text: root.running || root.remainingSecs !== root.totalSecs
+      ? "󰔟 " + root.timeText
+      : root.phase === "shortBreak" || root.phase === "longBreak" ? "󰒲" : "󰔟"
+    tooltipText: root.phaseLabel
+    active: root.running || root.alarming
+    horizontalMargin: 7.5
 
-    onClicked: root.toggle()
-    onRightClicked: root.startPause()
+    onPressed: function(b) {
+      if (b === Qt.LeftButton) root.toggle()
+    }
   }
 
   // ---- dropdown panel ----------------------------------------------------
@@ -116,26 +107,74 @@ Panel {
           width: parent.width
           spacing: Style.space(14)
 
-          PanelHero {
+          // Timer display
+          Item {
             width: parent.width
-            title: root.phaseLabel
-            meta: root.completedSessions > 0
-              ? root.completedSessions + " session" + (root.completedSessions > 1 ? "s" : "")
-              : "Ready to focus"
-            heroSize: Style.font.heading1 * 1.5
-            hero: root.timeText
-            foreground: root.foreground
-            dim: root.dim
-            fontFamily: root.fontFamily
-            urgency: root.alarming ? 2 : 0
+            implicitHeight: heroCol.implicitHeight
+
+            Column {
+              id: heroCol
+              width: parent.width
+              spacing: Style.space(4)
+
+              Text {
+                width: parent.width
+                text: root.phaseLabel.toUpperCase()
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                font.letterSpacing: 1.2
+                horizontalAlignment: Text.AlignHCenter
+              }
+
+              Text {
+                width: parent.width
+                text: root.timeText
+                color: root.alarming ? root.urgent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Math.round(Style.font.heading1 * 1.5)
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+
+                Behavior on color { ColorAnimation { duration: 200 } }
+              }
+
+              Text {
+                width: parent.width
+                text: root.completedSessions > 0
+                  ? root.completedSessions + " session" + (root.completedSessions > 1 ? "s" : "") + " completed"
+                  : "Ready to focus"
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                horizontalAlignment: Text.AlignHCenter
+              }
+            }
           }
 
-          ProgressBar {
+          // Progress track
+          Item {
             width: parent.width
-            value: root.progress
-            foreground: root.foreground
-            track: root.track
-            accent: root.urgent
+            height: Style.space(4)
+
+            Rectangle {
+              anchors.fill: parent
+              radius: height / 2
+              color: root.track
+              opacity: 0.3
+            }
+
+            Rectangle {
+              width: parent.width * root.progress
+              height: parent.height
+              radius: height / 2
+              color: root.alarming ? root.urgent : root.foreground
+
+              Behavior on width {
+                NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+              }
+            }
           }
 
           Row {
